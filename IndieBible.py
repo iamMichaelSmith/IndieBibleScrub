@@ -78,19 +78,26 @@ def extract_playlist_info(text):
         except Exception as e:
             print(f"Error processing playlist: {e}")
 
-def process_pdf_from_s3(bucket_name, file_key):
-    # Download the PDF from S3 to the local instance
-    s3_client.download_file(bucket_name, file_key, '/tmp/indie_spotify_bible.pdf')
+def process_pdf_from_s3(bucket_name):
+    # List all objects in the specified S3 bucket
+    response = s3_client.list_objects_v2(Bucket=bucket_name)
+    
+    # Check if the response contains 'Contents'
+    if 'Contents' in response:
+        for obj in response['Contents']:
+            key = obj['Key']
+            # Process only PDF files
+            if key.endswith('.pdf'):
+                # Download the PDF from S3 to the local instance
+                s3_client.download_file(bucket_name, key, f'/tmp/{key.split("/")[-1]}')
 
-    # Read and parse the PDF
-    with pdfplumber.open('/tmp/indie_spotify_bible.pdf') as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                extract_playlist_info(text)
+                # Read and parse the PDF
+                with pdfplumber.open(f'/tmp/{key.split("/")[-1]}') as pdf:
+                    for page in pdf.pages:
+                        text = page.extract_text()
+                        if text:
+                            extract_playlist_info(text)
 
 if __name__ == "__main__":
     bucket_name = 'indie-bible-bucket'  # Your S3 bucket name
-    file_key = 'INDIE-SPOTIFY-BIBLE.pdf'  # The key of the PDF file in the S3 bucket
-
-    process_pdf_from_s3(bucket_name, file_key)
+    process_pdf_from_s3(bucket_name)
