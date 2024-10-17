@@ -14,25 +14,43 @@ def extract_playlist_info(text):
 
     for playlist in playlists:
         try:
-            # Extract relevant fields using regex
-            curator_name = re.search(r'Curator:\s*(.*)', playlist).group(1).strip()
+            # Extract relevant fields using regex and provide default values if not found
+            curator_name = re.search(r'Curator:\s*(.*)', playlist)
+            curator_name = curator_name.group(1).strip() if curator_name else ""
+
             email = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', playlist)
-            email = email.group(0).strip() if email else None
+            email = email.group(0).strip() if email else ""
+
             location = re.search(r'Location:\s*(.*)', playlist)
-            location = location.group(1).strip() if location else None
-            genres = re.search(r'Genres:\s*(.*)', playlist).group(1).strip()
-            followers = re.search(r'Followers:\s*(\d+)', playlist).group(1).strip()
-            songs = re.search(r'Songs:\s*(\d+)', playlist).group(1).strip()
-            description = re.search(r'Description:\s*(.*)', playlist).group(1).strip()
+            location = location.group(1).strip() if location else ""
+
+            genres = re.search(r'Genres:\s*(.*)', playlist)
+            genres = genres.group(1).strip() if genres else ""
+
+            followers = re.search(r'Followers:\s*(\d+)', playlist)
+            followers = followers.group(1).strip() if followers else "0"  # Default to "0"
+
+            songs = re.search(r'Songs:\s*(\d+)', playlist)
+            songs = songs.group(1).strip() if songs else "0"  # Default to "0"
+
+            description = re.search(r'Description:\s*(.*)', playlist)
+            description = description.group(1).strip() if description else ""
+
             website = re.search(r'Website:\s*(.*)', playlist)
-            website = website.group(1).strip() if website else None
+            website = website.group(1).strip() if website else ""
+
             twitter = re.search(r'Twitter:\s*(.*)', playlist)
-            twitter = twitter.group(1).strip() if twitter else None
-            spotify_page = re.search(r'Spotify Playlist Page:\s*(.*)', playlist).group(1).strip()
+            twitter = twitter.group(1).strip() if twitter else ""
+
+            spotify_page = re.search(r'Spotify Playlist Page:\s*(.*)', playlist)
+            spotify_page = spotify_page.group(1).strip() if spotify_page else ""
+
             submission_method = re.search(r'Submission Method:\s*(.*)', playlist)
-            submission_method = submission_method.group(1).strip() if submission_method else None
+            submission_method = submission_method.group(1).strip() if submission_method else ""
+
             submission_page = re.search(r'Submission Page:\s*(.*)', playlist)
-            submission_page = submission_page.group(1).strip() if submission_page else None
+            submission_page = submission_page.group(1).strip() if submission_page else ""
+
             hashtags = re.findall(r'#\w+', playlist)
 
             # Prepare the item for DynamoDB
@@ -40,7 +58,7 @@ def extract_playlist_info(text):
                 'CuratorName': curator_name,
                 'Email': email,
                 'Location': location,
-                'Genres': list(set(genres.split(', '))),  # Convert string to list
+                'Genres': list(set(genres.split(', '))) if genres else [],  # Convert to list or leave empty
                 'Followers': int(followers),
                 'Songs': int(songs),
                 'Description': description,
@@ -49,7 +67,7 @@ def extract_playlist_info(text):
                 'SpotifyPlaylistPage': spotify_page,
                 'SubmissionMethod': submission_method,
                 'SubmissionPage': submission_page,
-                'Hashtags': hashtags
+                'Hashtags': hashtags if hashtags else []  # Leave empty if no hashtags found
             }
 
             # Put the item into DynamoDB
