@@ -6,7 +6,7 @@ import re
 # Initialize the S3 and DynamoDB clients
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table('SpotifyPlaylisters')  # Change this to your DynamoDB table name
+table = dynamodb.Table('SpotifyPlaylisters')  # Ensure the table name is correct
 
 def extract_playlist_info(text):
     # Regex patterns to extract required information
