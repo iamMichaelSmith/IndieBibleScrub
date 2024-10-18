@@ -2,11 +2,34 @@ import json
 import pdfplumber
 import boto3
 import re
+import time
 
 # Initialize the S3 and DynamoDB clients
 s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('SpotifyPlaylisters')  # Ensure the table name is correct
+
+# Mapping of potential keywords to their respective fields
+FIELD_MAPPING = {
+    'Curator': 'CuratorName',
+    'Owner': 'CuratorName',
+    'Email': 'Email',
+    'Location': 'Location',
+    'Genres': 'Genres',
+    'Followers': 'Followers',
+    'Songs': 'Songs',
+    'Description': 'Description',
+    'Website': 'Website',
+    'Twitter': 'Twitter',
+    'Spotify Playlist Page': 'SpotifyPlaylistPage',
+    'Submission Method': 'SubmissionMethod',
+    'Submission Page': 'SubmissionPage'
+}
+
+def extract_field(pattern, playlist, default_value=""):
+    """Helper function to extract a field from the playlist using regex."""
+    match = re.search(pattern, playlist)
+    return match.group(1).strip() if match else default_value
 
 def extract_playlist_info(text, source_type="Spotify"):
     # Regex patterns to extract required information
@@ -17,70 +40,48 @@ def extract_playlist_info(text, source_type="Spotify"):
 
     for playlist in playlists:
         try:
-            # Extract relevant fields using regex and provide default values if not found
-            curator_name = re.search(r'(Curator|Owner):\s*(.*)', playlist)
-            curator_name = curator_name.group(2).strip() if curator_name else "Unknown Curator"
-
-            email = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', playlist)
-            email = email.group(0).strip() if email else "no-email@example.com"
-
-            location = re.search(r'Location:\s*(.*)', playlist)
-            location = location.group(1).strip() if location else ""
-
-            genres = re.search(r'Genres:\s*(.*)', playlist)
-            genres = genres.group(1).strip() if genres else ""
-
-            followers = re.search(r'Followers:\s*(\d+)', playlist)
-            followers = followers.group(1).strip() if followers else "0"  # Default to "0"
-
-            songs = re.search(r'Songs:\s*(\d+)', playlist)
-            songs = songs.group(1).strip() if songs else "0"  # Default to "0"
-
-            description = re.search(r'Description:\s*(.*)', playlist)
-            description = description.group(1).strip() if description else ""
-
-            website = re.search(r'Website:\s*(.*)', playlist)
-            website = website.group(1).strip() if website else ""
-
-            twitter = re.search(r'Twitter:\s*(.*)', playlist)
-            twitter = twitter.group(1).strip() if twitter else ""
-
-            spotify_page = re.search(r'Spotify Playlist Page:\s*(.*)', playlist)
-            spotify_page = spotify_page.group(1).strip() if spotify_page else ""
-
-            submission_method = re.search(r'Submission Method:\s*(.*)', playlist)
-            submission_method = submission_method.group(1).strip() if submission_method else ""
-
-            submission_page = re.search(r'Submission Page:\s*(.*)', playlist)
-            submission_page = submission_page.group(1).strip() if submission_page else ""
-
+            # Extract relevant fields using the FIELD_MAPPING
+            curator_name = extract_field(r'(Curator|Owner):\s*(.*)', playlist, "Unknown Curator")
+            email = extract_field(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', playlist, "no-email@example.com")
+            location = extract_field(r'Location:\s*(.*)', playlist)
+            genres = extract_field(r'Genres:\s*(.*)', playlist)
+            followers = extract_field(r'Followers:\s*(\d+)', playlist, "0")  # Default to "0"
+            songs = extract_field(r'Songs:\s*(\d+)', playlist, "0")  # Default to "0"
+            description = extract_field(r'Description:\s*(.*)', playlist)
+            website = extract_field(r'Website:\s*(.*)', playlist)
+            twitter = extract_field(r'Twitter:\s*(.*)', playlist)
+            spotify_page = extract_field(r'Spotify Playlist Page:\s*(.*)', playlist)
+            submission_method = extract_field(r'Submission Method:\s*(.*)', playlist)
+            submission_page = extract_field(r'Submission Page:\s*(.*)', playlist)
             hashtags = re.findall(r'#\w+', playlist)
 
-            # Only proceed if CuratorName and Email are present
-            if curator_name and email:
-                # Prepare the item for DynamoDB
-                item = {
-                    'CuratorName': curator_name,
-                    'Email': email,
-                    'Location': location,
-                    'Genres': list(set(genres.split(', '))) if genres else [],  # Convert to list or leave empty
-                    'Followers': int(followers),
-                    'Songs': int(songs),
-                    'Description': description,
-                    'Website': website,
-                    'Twitter': twitter,
-                    'SpotifyPlaylistPage': spotify_page,
-                    'SubmissionMethod': submission_method,
-                    'SubmissionPage': submission_page,
-                    'Hashtags': hashtags if hashtags else []  # Leave empty if no hashtags found
-                }
+            # Prepare the item for DynamoDB
+            item = {
+                'CuratorName': curator_name,
+                'Email': email,
+                'Location': location,
+                'Genres': list(set(genres.split(', '))) if genres else [],  # Convert to list or leave empty
+                'Followers': int(followers),
+                'Songs': int(songs),
+                'Description': description,
+                'Website': website,
+                'Twitter': twitter,
+                'SpotifyPlaylistPage': spotify_page,
+                'SubmissionMethod': submission_method,
+                'SubmissionPage': submission_page,
+                'Hashtags': hashtags if hashtags else []  # Leave empty if no hashtags found
+            }
 
-                # Put the item into DynamoDB
-                table.put_item(Item=item)
+            # Use batch writer to put items
+            with table.batch_writer() as batch:
+                try:
+                    batch.put_item(Item=item)
+                    print(f"Added playlist by {curator_name} to DynamoDB.")
+                except Exception as db_error:
+                    print(f"Error adding playlist by {curator_name} to DynamoDB: {db_error}")
 
-                print(f"Added playlist by {curator_name} to DynamoDB.")
-            else:
-                print(f"Skipping playlist due to missing key fields: {curator_name}, {email}")
+            # Introduce a delay to prevent throttling
+            time.sleep(0.1)  # Adjust the sleep time as needed
 
         except Exception as e:
             print(f"Error processing playlist: {e}")
