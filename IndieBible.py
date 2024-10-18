@@ -19,10 +19,10 @@ def extract_playlist_info(text, source_type="Spotify"):
         try:
             # Extract relevant fields using regex and provide default values if not found
             curator_name = re.search(r'(Curator|Owner):\s*(.*)', playlist)
-            curator_name = curator_name.group(2).strip() if curator_name else ""
+            curator_name = curator_name.group(2).strip() if curator_name else "Unknown Curator"
 
             email = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', playlist)
-            email = email.group(0).strip() if email else ""
+            email = email.group(0).strip() if email else "no-email@example.com"
 
             location = re.search(r'Location:\s*(.*)', playlist)
             location = location.group(1).strip() if location else ""
