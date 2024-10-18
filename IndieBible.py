@@ -56,27 +56,31 @@ def extract_playlist_info(text, source_type="Spotify"):
 
             hashtags = re.findall(r'#\w+', playlist)
 
-            # Prepare the item for DynamoDB
-            item = {
-                'CuratorName': curator_name,
-                'Email': email,
-                'Location': location,
-                'Genres': list(set(genres.split(', '))) if genres else [],  # Convert to list or leave empty
-                'Followers': int(followers),
-                'Songs': int(songs),
-                'Description': description,
-                'Website': website,
-                'Twitter': twitter,
-                'SpotifyPlaylistPage': spotify_page,
-                'SubmissionMethod': submission_method,
-                'SubmissionPage': submission_page,
-                'Hashtags': hashtags if hashtags else []  # Leave empty if no hashtags found
-            }
+            # Only proceed if CuratorName and Email are present
+            if curator_name and email:
+                # Prepare the item for DynamoDB
+                item = {
+                    'CuratorName': curator_name,
+                    'Email': email,
+                    'Location': location,
+                    'Genres': list(set(genres.split(', '))) if genres else [],  # Convert to list or leave empty
+                    'Followers': int(followers),
+                    'Songs': int(songs),
+                    'Description': description,
+                    'Website': website,
+                    'Twitter': twitter,
+                    'SpotifyPlaylistPage': spotify_page,
+                    'SubmissionMethod': submission_method,
+                    'SubmissionPage': submission_page,
+                    'Hashtags': hashtags if hashtags else []  # Leave empty if no hashtags found
+                }
 
-            # Put the item into DynamoDB
-            table.put_item(Item=item)
+                # Put the item into DynamoDB
+                table.put_item(Item=item)
 
-            print(f"Added playlist by {curator_name} to DynamoDB.")
+                print(f"Added playlist by {curator_name} to DynamoDB.")
+            else:
+                print(f"Skipping playlist due to missing key fields: {curator_name}, {email}")
 
         except Exception as e:
             print(f"Error processing playlist: {e}")
