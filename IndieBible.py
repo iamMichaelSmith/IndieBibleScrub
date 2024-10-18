@@ -8,15 +8,18 @@ s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 table = dynamodb.Table('SpotifyPlaylisters')  # Ensure the table name is correct
 
-def extract_playlist_info(text):
+def extract_playlist_info(text, source_type="Spotify"):
     # Regex patterns to extract required information
-    playlists = re.split(r'\n(?=\#)', text)  # Assuming each playlist starts with a hashtag
+    if source_type == "Spotify":
+        playlists = re.split(r'\n(?=\#)', text)  # Assuming each playlist starts with a hashtag
+    elif source_type == "YouTube":
+        playlists = re.split(r'\n(?=\Owner)', text)  # For YouTube playlist owners
 
     for playlist in playlists:
         try:
             # Extract relevant fields using regex and provide default values if not found
-            curator_name = re.search(r'Curator:\s*(.*)', playlist)
-            curator_name = curator_name.group(1).strip() if curator_name else ""
+            curator_name = re.search(r'(Curator|Owner):\s*(.*)', playlist)
+            curator_name = curator_name.group(2).strip() if curator_name else ""
 
             email = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', playlist)
             email = email.group(0).strip() if email else ""
@@ -78,7 +81,7 @@ def extract_playlist_info(text):
         except Exception as e:
             print(f"Error processing playlist: {e}")
 
-def process_pdf_from_s3(bucket_name):
+def process_pdf_from_s3(bucket_name, file_type="Spotify"):
     # List all objects in the specified S3 bucket
     response = s3_client.list_objects_v2(Bucket=bucket_name)
     
@@ -94,10 +97,13 @@ def process_pdf_from_s3(bucket_name):
                 # Read and parse the PDF
                 with pdfplumber.open(f'/tmp/{key.split("/")[-1]}') as pdf:
                     for page in pdf.pages:
-                        text = page.extract_text()
-                        if text:
-                            extract_playlist_info(text)
+                        try:
+                            text = page.extract_text()
+                            if text:
+                                extract_playlist_info(text, source_type=file_type)
+                        except Exception as e:
+                            print(f"Error reading page {page.page_number}: {e}")
 
 if __name__ == "__main__":
     bucket_name = 'indie-bible-bucket'  # Your S3 bucket name
-    process_pdf_from_s3(bucket_name)
+    process_pdf_from_s3(bucket_name, file_type="Spotify")  # Pass 'YouTube' for YouTube PDFs
