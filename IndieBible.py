@@ -3,6 +3,7 @@ import pdfplumber
 import boto3
 import re
 import time
+from docx import Document  # Importing the library to handle Word documents
 
 # Initialize the S3 and DynamoDB clients
 s3_client = boto3.client('s3')
@@ -26,9 +27,9 @@ FIELD_MAPPING = {
     'Submission Page': 'SubmissionPage'
 }
 
-def extract_field(pattern, playlist, default_value=""):
-    """Helper function to extract a field from the playlist using regex."""
-    match = re.search(pattern, playlist)
+def extract_field(pattern, text, default_value=""):
+    """Helper function to extract a field using regex."""
+    match = re.search(pattern, text)
     return match.group(1).strip() if match else default_value
 
 def extract_playlist_info(text, source_type="Spotify"):
@@ -86,15 +87,15 @@ def extract_playlist_info(text, source_type="Spotify"):
         except Exception as e:
             print(f"Error processing playlist: {e}")
 
-def process_pdf_from_s3(bucket_name, file_type="Spotify"):
+def process_documents_from_s3(bucket_name, file_type="Spotify"):
     # List all objects in the specified S3 bucket
     response = s3_client.list_objects_v2(Bucket=bucket_name)
-    
+
     # Check if the response contains 'Contents'
     if 'Contents' in response:
         for obj in response['Contents']:
             key = obj['Key']
-            # Process only PDF files
+            # Process only PDF or DOCX files
             if key.endswith('.pdf'):
                 # Download the PDF from S3 to the local instance
                 s3_client.download_file(bucket_name, key, f'/tmp/{key.split("/")[-1]}')
@@ -109,6 +110,19 @@ def process_pdf_from_s3(bucket_name, file_type="Spotify"):
                         except Exception as e:
                             print(f"Error reading page {page.page_number}: {e}")
 
+            elif key.endswith('.docx'):
+                # Download the DOCX file from S3 to the local instance
+                s3_client.download_file(bucket_name, key, f'/tmp/{key.split("/")[-1]}')
+
+                # Read and parse the DOCX file
+                doc = Document(f'/tmp/{key.split("/")[-1]}')
+                text = ""
+                for paragraph in doc.paragraphs:
+                    text += paragraph.text + "\n"  # Concatenate all paragraphs
+
+                if text:
+                    extract_playlist_info(text, source_type=file_type)
+
 if __name__ == "__main__":
     bucket_name = 'indie-bible-bucket'  # Your S3 bucket name
-    process_pdf_from_s3(bucket_name, file_type="Spotify")  # Pass 'YouTube' for YouTube PDFs
+    process_documents_from_s3(bucket_name, file_type="Spotify")  # Pass 'YouTube' for YouTube documents
